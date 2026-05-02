@@ -1,0 +1,9 @@
+{
+  "short_name": "गाड़ी Express",
+  "name": "गाड़ी एक्सप्रेस - Rural Transport",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#FF6B1A",
+  "background_color": "#FFF8F3"
+}

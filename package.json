@@ -1,0 +1,11 @@
+{
+  "name": "gaadi-express",
+  "version": "2.0.0",
+  "description": "Gaadi Express - Rural Transport Platform",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd backend && npm install && node server.js",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start"
+  }
+}
