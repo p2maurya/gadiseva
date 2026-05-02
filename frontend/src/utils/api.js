@@ -5,16 +5,7 @@
 // - If frontend is served by same Express server: uses relative URL (empty string)
 
 function getBaseUrl() {
-  // Explicitly set via env var (Vercel/Netlify/Render)
-  if (process.env.REACT_APP_API_URL) {
-    return process.env.REACT_APP_API_URL.replace(/\/$/, '');
-  }
-  // Development: use localhost
-  if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:5000';
-  }
-  // Production without env var: assume same origin (Express serves frontend)
-  return '';
+  return "https://gadiseva.onrender.com";
 }
 
 const BASE_URL = getBaseUrl();
