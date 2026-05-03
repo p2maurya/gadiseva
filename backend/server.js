@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { connectMongo } = require('./data/store');
+
 const app = express();
 
 // ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
@@ -20,10 +22,12 @@ app.use('/api/bookings', bookingsRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
+  const { db } = require('./data/store');
   res.json({
     status: 'ok',
     message: 'Gaadi Express API running ✅',
     timestamp: new Date().toISOString(),
+    storage: db.isUsingMongo() ? 'mongodb' : 'memory (data resets on restart!)',
     env: process.env.NODE_ENV || 'development'
   });
 });
@@ -32,7 +36,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api', (req, res) => {
   res.json({
     name: 'Gaadi Express - Rural Transport API',
-    version: '2.0.0',
+    version: '2.1.0',
     endpoints: [
       'GET  /api/health',
       'POST /api/drivers — Register driver',
@@ -51,13 +55,11 @@ app.get('/api', (req, res) => {
 });
 
 // ─── SERVE REACT FRONTEND ────────────────────────────────────────────────────
-// In production (Render), serve the built React app
 const frontendBuildPath = path.join(__dirname, '..', 'frontend', 'build');
 const fs = require('fs');
 
 if (fs.existsSync(frontendBuildPath)) {
   app.use(express.static(frontendBuildPath));
-  // All non-API routes → React app
   app.get('*', (req, res) => {
     res.sendFile(path.join(frontendBuildPath, 'index.html'));
   });
@@ -73,10 +75,21 @@ if (fs.existsSync(frontendBuildPath)) {
 
 // ─── START ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🚛 Gaadi Express running on port ${PORT}`);
-  console.log(`   http://localhost:${PORT}`);
-  console.log(`   API: http://localhost:${PORT}/api\n`);
+
+async function startServer() {
+  // Connect to MongoDB first (falls back to memory if not configured)
+  await connectMongo();
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🚛 Gaadi Express running on port ${PORT}`);
+    console.log(`   http://localhost:${PORT}`);
+    console.log(`   API: http://localhost:${PORT}/api\n`);
+  });
+}
+
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
 });
 
 module.exports = app;
