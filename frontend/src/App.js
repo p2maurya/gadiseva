@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { api, getLocation, GOODS_TYPES, VEHICLE_TYPES, VEHICLE_EMOJI, calcFare } from './utils/api';
 
 // ─── GLOBAL STYLES ─────────────────────────────────────────────────────────────
@@ -392,6 +392,117 @@ const STYLES = `
 
   /* Admin assign driver */
   .assign-select { font-size: 13px; padding: 8px 12px; border: 2px solid var(--border); border-radius: var(--radius-xs); font-family: inherit; color: var(--text); background: white; cursor: pointer; }
+
+  /* ── AI CHATBOT ──────────────────────────────── */
+  .ai-fab {
+    position: fixed; bottom: 24px; right: 20px; z-index: 9990;
+    width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--saffron), var(--saffron-dark));
+    font-size: 26px; box-shadow: 0 6px 24px rgba(255,107,26,0.5);
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .ai-fab:hover { transform: scale(1.08); box-shadow: 0 8px 32px rgba(255,107,26,0.6); }
+  .ai-fab:active { transform: scale(0.95); }
+  .ai-fab-label {
+    position: absolute; top: -2px; right: -2px;
+    background: var(--green-light); color: white; font-size: 8px; font-weight: 800;
+    border-radius: 10px; padding: 2px 5px; border: 2px solid white; letter-spacing: 0.3px;
+  }
+  .ai-window {
+    position: fixed; bottom: 96px; right: 16px; z-index: 9989;
+    width: 340px; max-width: calc(100vw - 32px);
+    background: white; border-radius: 22px;
+    box-shadow: 0 16px 56px rgba(0,0,0,0.2), 0 2px 8px rgba(255,107,26,0.1);
+    display: flex; flex-direction: column; overflow: hidden;
+    transform: scale(0.88) translateY(24px); opacity: 0; pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    max-height: calc(100vh - 120px);
+  }
+  .ai-window.ai-open { transform: scale(1) translateY(0); opacity: 1; pointer-events: all; }
+  .ai-header {
+    background: linear-gradient(135deg, var(--saffron), var(--saffron-dark));
+    padding: 13px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  .ai-avatar {
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+    background: rgba(255,255,255,0.22); border: 2px solid rgba(255,255,255,0.4);
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .ai-hname { color: white; font-size: 14px; font-weight: 800; }
+  .ai-hstatus { color: rgba(255,255,255,0.85); font-size: 10px; display: flex; align-items: center; gap: 4px; }
+  .ai-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green-light); flex-shrink: 0; animation: aiDotBlink 2s infinite; }
+  @keyframes aiDotBlink { 0%,100%{opacity:1}50%{opacity:0.35} }
+  .ai-close-btn {
+    margin-left: auto; background: rgba(255,255,255,0.18); border: none; color: white;
+    width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .ai-lang-row {
+    display: flex; background: var(--saffron-pale); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .ai-lang-btn {
+    flex: 1; padding: 7px 4px; border: none; background: transparent; cursor: pointer;
+    font-family: inherit; font-size: 10px; font-weight: 700; color: var(--text-soft);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s;
+  }
+  .ai-lang-btn.ai-lang-active { color: var(--saffron); border-bottom-color: var(--saffron); background: white; }
+  .ai-messages {
+    flex: 1; overflow-y: auto; padding: 12px 10px; display: flex; flex-direction: column;
+    gap: 8px; background: #FFF8F3; min-height: 200px; max-height: 280px; scroll-behavior: smooth;
+  }
+  .ai-messages::-webkit-scrollbar { width: 3px; }
+  .ai-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .ai-msg { display: flex; gap: 6px; align-items: flex-end; }
+  .ai-msg.ai-user { flex-direction: row-reverse; }
+  .ai-bubble {
+    max-width: 80%; padding: 8px 12px; border-radius: 16px; font-size: 13px; line-height: 1.5; white-space: pre-line;
+  }
+  .ai-msg.ai-bot .ai-bubble { background: white; color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .ai-msg.ai-user .ai-bubble { background: linear-gradient(135deg, var(--saffron), var(--saffron-dark)); color: white; border-bottom-right-radius: 4px; }
+  .ai-msg-avatar { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; font-size: 13px; display: flex; align-items: center; justify-content: center; background: var(--saffron-pale); border: 1px solid var(--border); }
+  .ai-time { font-size: 10px; color: #bbb; margin-top: 2px; }
+  .ai-typing { display: flex; gap: 4px; padding: 9px 12px; }
+  .ai-typing-dot { width: 7px; height: 7px; border-radius: 50%; background: #ddd; animation: aiType 1.2s ease-in-out infinite; }
+  .ai-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .ai-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes aiType { 0%,80%,100%{transform:scale(0.8);opacity:0.5}40%{transform:scale(1.1);opacity:1} }
+  .ai-chips {
+    display: flex; gap: 6px; padding: 8px 10px; overflow-x: auto; flex-wrap: nowrap;
+    background: white; border-top: 1px solid #F5EDE5; flex-shrink: 0;
+  }
+  .ai-chips::-webkit-scrollbar { display: none; }
+  .ai-chip {
+    flex-shrink: 0; padding: 5px 11px; border-radius: 20px; border: 1.5px solid var(--border);
+    background: var(--saffron-pale); color: var(--saffron-dark); font-size: 11px; font-weight: 600;
+    cursor: pointer; white-space: nowrap; font-family: inherit; transition: all 0.15s;
+  }
+  .ai-chip:hover { background: var(--saffron); color: white; border-color: var(--saffron); }
+  .ai-chip:active { transform: scale(0.95); }
+  .ai-input-row {
+    display: flex; gap: 7px; padding: 9px 10px; background: white;
+    border-top: 1px solid #F5EDE5; align-items: center; flex-shrink: 0;
+  }
+  .ai-input {
+    flex: 1; border: 1.5px solid var(--border); border-radius: 20px;
+    padding: 8px 13px; font-family: inherit; font-size: 13px; outline: none;
+    background: var(--bg); transition: border-color 0.15s; color: var(--text);
+  }
+  .ai-input:focus { border-color: var(--saffron); }
+  .ai-mic-btn {
+    width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
+    background: var(--green-pale); font-size: 15px; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; transition: all 0.15s;
+  }
+  .ai-mic-btn.ai-listening { background: var(--red); animation: aiMicPulse 1s ease-out infinite; }
+  @keyframes aiMicPulse { 0%{box-shadow:0 0 0 0 rgba(198,40,40,0.5)}70%{box-shadow:0 0 0 12px rgba(198,40,40,0)}100%{box-shadow:0 0 0 0 rgba(198,40,40,0)} }
+  .ai-send-btn {
+    width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--saffron), var(--saffron-dark)); color: white;
+    font-size: 15px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: transform 0.15s;
+  }
+  .ai-send-btn:active { transform: scale(0.9); }
 `;
 
 // ─── TOAST ─────────────────────────────────────────────────────────────────────
@@ -1075,6 +1186,298 @@ function AdminScreen({ showToast, onBack }) {
   );
 }
 
+// ─── AI CHATBOT ─────────────────────────────────────────────────────────────────
+const AI_RESPONSES = {
+  hi: {
+    greet: 'नमस्ते! 🙏 मैं गाड़ी Express AI हूँ।\nमैं इन कामों में मदद करता हूँ:\n🚛 गाड़ी बुकिंग\n🔍 नज़दीकी वाहन\n💰 किराया जानना\n📋 बुकिंग status\n\nआप क्या जानना चाहते हैं?',
+    book: '🚛 बुकिंग शुरू करते हैं!\nपहले अपना पूरा नाम बताएं।',
+    askFrom: 'ठीक है! अब बताएं — सामान कहाँ से उठाना है?\n(गाँव / तहसील / जिला)',
+    askTo: 'समझ गया! अब बताएं — सामान कहाँ पहुँचाना है?\n(मंडी / शहर / स्थान)',
+    askGoods: 'रास्ता नोट हो गया! अब बताएं —\nक्या सामान है?\n(जैसे: अनाज, फर्नीचर, गल्ला, मशीनरी)',
+    fareCalc: (name, from, to, goods) =>
+      `✅ बुकिंग Details:\n👤 ${name}\n📍 ${from} → ${to}\n📦 ${goods}\n💰 अनुमानित किराया: ₹${(Math.floor(Math.random()*15)+5)*100}–₹${(Math.floor(Math.random()*20)+20)*100}\n\nक्या बुकिंग Confirm करूँ? (हाँ / नहीं)`,
+    confirmed: (id) => `🎉 बुकिंग हो गई!\nBooking ID: #${id}\n\nड्राइवर 30 मिनट में contact करेगा। धन्यवाद! 🙏`,
+    vehicles: '🔍 नज़दीकी वाहन खोज रहे हैं...\n\n✅ 3 वाहन उपलब्ध:\n🚛 रमेश ट्रकिंग — 2.3 km — ⭐4.8\n🚜 श्याम ट्रांसपोर्ट — 4.1 km — ⭐4.5\n🚚 गिरिजा कैरियर्स — 5.8 km — ⭐4.2\n\nApp में "ग्राहक हूँ" से बुकिंग करें।',
+    mybooking: '📋 बुकिंग देखने के लिए App में\n"ग्राहक हूँ → मेरी बुकिंग" में जाएं\nऔर अपना मोबाइल नंबर डालें।',
+    fare: 'किराया जानने के लिए बताएं —\nकहाँ से कहाँ जाना है?',
+    help: '📞 मैं इनमें मदद कर सकता हूँ:\n\n🚛 गाड़ी बुक करना\n🔍 नज़दीकी वाहन खोजना\n💰 किराया जानना\n📋 बुकिंग status देखना\n🚜 Driver registration\n⚙️ Admin जानकारी',
+    cancel: 'ठीक है, बुकिंग प्रक्रिया रद्द की गई।\nक्या और कुछ मदद चाहिए?',
+    driver: '🚜 Driver बनने के लिए:\nApp में "वाहन मालिक हूँ" पर क्लिक करें\nऔर registration form भरें।\n\nफायदे:\n✅ रोज़ बुकिंग मिलेगी\n✅ अपनी कमाई बढ़ाएं\n✅ Online/Offline control',
+    admin: '⚙️ Admin Panel के लिए:\nApp में "Admin Panel" पर जाएं।\nDemo password: admin123\n\nAdmin सभी बुकिंग manage और drivers assign कर सकते हैं।',
+    unknown: 'माफ़ कीजिए, मैं समझ नहीं पाया। 🙏\nआप इनमें से कुछ पूछ सकते हैं:\n• गाड़ी बुक करो\n• नज़दीकी वाहन\n• किराया कितना होगा\n• मेरी बुकिंग दिखाओ',
+  },
+  en: {
+    greet: 'Hello! 👋 I\'m Gaadi Express AI.\nI can help with:\n🚛 Book a vehicle\n🔍 Find nearby trucks\n💰 Check fare\n📋 Booking status\n\nHow can I help you?',
+    book: '🚛 Let\'s start booking!\nFirst, please tell me your full name.',
+    askFrom: 'Got it! Where should we pick up the goods?\n(Village / Tehsil / District)',
+    askTo: 'Perfect! Where should the goods be delivered?\n(Mandi / City / Location)',
+    askGoods: 'Route noted! Now tell me —\nWhat type of goods?\n(e.g. Grain, Furniture, Machinery)',
+    fareCalc: (name, from, to, goods) =>
+      `✅ Booking Summary:\n👤 ${name}\n📍 ${from} → ${to}\n📦 ${goods}\n💰 Estimated Fare: ₹${(Math.floor(Math.random()*15)+5)*100}–₹${(Math.floor(Math.random()*20)+20)*100}\n\nShall I confirm the booking? (Yes / No)`,
+    confirmed: (id) => `🎉 Booking Confirmed!\nBooking ID: #${id}\n\nDriver will contact you in 30 mins. Thank you!`,
+    vehicles: '🔍 Searching nearby vehicles...\n\n✅ 3 vehicles available:\n🚛 Ramesh Trucking — 2.3 km — ⭐4.8\n🚜 Shyam Transport — 4.1 km — ⭐4.5\n🚚 Girija Carriers — 5.8 km — ⭐4.2\n\nUse "Customer" in the App to book.',
+    mybooking: '📋 To check bookings, go to\n"Customer → My Bookings" in the App\nand enter your mobile number.',
+    fare: 'To check fare, please tell me —\nFrom where to where?',
+    help: '📞 I can help with:\n\n🚛 Book a vehicle\n🔍 Find nearby trucks\n💰 Check fares\n📋 Booking status\n🚜 Driver registration\n⚙️ Admin info',
+    cancel: 'Okay, booking process cancelled.\nAnything else I can help with?',
+    driver: '🚜 To become a driver:\nClick "Vehicle Owner" in the App\nand fill the registration form.\n\nBenefits:\n✅ Get daily bookings\n✅ Increase your earnings\n✅ Control Online/Offline',
+    admin: '⚙️ For Admin Panel:\nGo to "Admin Panel" in the App.\nDemo password: admin123',
+    unknown: 'Sorry, I didn\'t understand. 🙏\nYou can ask about:\n• Book a vehicle\n• Nearby trucks\n• Fare estimate\n• My bookings',
+  },
+  hinglish: {
+    greet: 'Hello yaar! 👋 Main hoon Gaadi Express AI.\nKya help chahiye?\n🚛 Gaadi book karna\n🔍 Nearby trucks\n💰 Fare check\n📋 Booking status',
+    book: '🚛 Booking shuru karte hain!\nPehle apna naam batao.',
+    askFrom: 'Theek hai! Kahan se saman uthana hai?',
+    askTo: 'Samajh gaya! Kahan deliver karna hai?',
+    askGoods: 'Route note ho gaya! Ab batao —\nKya saman hai?',
+    fareCalc: (name, from, to, goods) =>
+      `✅ Booking Detail:\n👤 ${name}\n📍 ${from} → ${to}\n📦 ${goods}\n💰 Estimated fare: ₹${(Math.floor(Math.random()*15)+5)*100}–₹${(Math.floor(Math.random()*20)+20)*100}\n\nConfirm karoon? (Haan / Nahi)`,
+    confirmed: (id) => `🎉 Booking ho gayi!\nID: #${id}\n\nDriver 30 min mein call karega. Thanks! 🙏`,
+    vehicles: '🔍 Nearby vehicles dhundh raha hoon...\n\n✅ 3 vehicles available:\n🚛 Ramesh Trucking — 2.3 km ⭐4.8\n🚜 Shyam Transport — 4.1 km ⭐4.5\n🚚 Girija Carriers — 5.8 km ⭐4.2',
+    mybooking: '📋 Booking dekhne ke liye App mein\n"Grahak → Meri Booking" mein jao.',
+    fare: 'Fare jaanne ke liye batao —\nKahan se kahan?',
+    help: 'Main help kar sakta hoon:\n🚛 Gaadi book karna\n🔍 Nearby trucks\n💰 Fare check\n📋 Booking status\n🚜 Driver bano',
+    cancel: 'Theek hai, cancel kar diya.\nAur kuch chahiye?',
+    driver: '🚜 Driver banne ke liye:\nApp mein "Vahan Malik" click karo.',
+    admin: '⚙️ Admin Panel ke liye:\nApp mein "Admin Panel" mein jao.\nPassword: admin123',
+    unknown: 'Yaar, samajh nahi aaya. 😅\nIn cheezoon ke baare mein pucho:\n• Gaadi book karo\n• Nearby vehicles\n• Fare kitna\n• Meri booking',
+  },
+};
+
+const AI_CHIPS = {
+  hi:       ['🚛 बुकिंग करें', '🔍 नज़दीकी गाड़ी', '💰 किराया', '📋 मेरी बुकिंग', '🚜 Driver बनें', '❓ Help'],
+  en:       ['🚛 Book Vehicle', '🔍 Nearby Trucks', '💰 Check Fare', '📋 My Bookings', '🚜 Become Driver', '❓ Help'],
+  hinglish: ['🚛 Book Karo', '🔍 Gaadi Dhundo', '💰 Fare Kitna?', '📋 Meri Booking', '🚜 Driver Bano', '❓ Help'],
+};
+
+function AIChatbot() {
+  const [open, setOpen] = useState(false);
+  const [lang, setLang] = useState('hi');
+  const [msgs, setMsgs] = useState([]);
+  const [input, setInput] = useState('');
+  const [typing, setTyping] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [convState, setConvState] = useState({});
+  const msgsEndRef = React.useRef(null);
+  const recognitionRef = React.useRef(null);
+
+  useEffect(() => { msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, typing]);
+
+  useEffect(() => {
+    if (open && msgs.length === 0) {
+      setTimeout(() => addBot(AI_RESPONSES[lang].greet), 450);
+    }
+  }, [open]); // eslint-disable-line
+
+  const now = () => new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+  const addBot = useCallback((text) => {
+    setTyping(true);
+    const delay = Math.min(500 + text.length * 10, 2000);
+    setTimeout(() => {
+      setTyping(false);
+      setMsgs(prev => [...prev, { role: 'bot', text, time: now() }]);
+      speak(text);
+    }, delay);
+  }, []); // eslint-disable-line
+
+  const addUser = (text) => setMsgs(prev => [...prev, { role: 'user', text, time: now() }]);
+
+  const speak = (text) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const clean = text.replace(/[🎉✅🚛🔍💰📋❓🙏👋📍📦🚜⚙️🔑🌾]/g, '').trim();
+    if (clean.length < 3) return;
+    const utt = new SpeechSynthesisUtterance(clean.substring(0, 180));
+    const voices = window.speechSynthesis.getVoices();
+    const v = voices.find(v => v.lang.startsWith('hi')) || voices.find(v => v.lang.startsWith('en-IN')) || voices[0];
+    if (v) utt.voice = v;
+    utt.rate = 0.88; utt.pitch = 1.05; utt.volume = 0.85;
+    window.speechSynthesis.speak(utt);
+  };
+
+  const genId = () => Math.random().toString(36).substr(2, 6).toUpperCase();
+
+  const process = useCallback((raw) => {
+    const t = raw.toLowerCase().trim();
+    const R = AI_RESPONSES[lang];
+    const cs = convState;
+
+    if (cs.step === 'ask_name') {
+      setConvState({ ...cs, name: raw, step: 'ask_from' });
+      return addBot(R.askFrom);
+    }
+    if (cs.step === 'ask_from') {
+      setConvState({ ...cs, from: raw, step: 'ask_to' });
+      return addBot(R.askTo);
+    }
+    if (cs.step === 'ask_to') {
+      setConvState({ ...cs, to: raw, step: 'ask_goods' });
+      return addBot(R.askGoods);
+    }
+    if (cs.step === 'ask_goods') {
+      const updated = { ...cs, goods: raw, step: 'confirm' };
+      setConvState(updated);
+      return addBot(R.fareCalc(cs.name, cs.from, cs.to, raw));
+    }
+    if (cs.step === 'confirm') {
+      setConvState({});
+      const yes = t.includes('हाँ') || t.includes('han') || t.includes('yes') || t.includes('haa') || t.includes('ok') || t.includes('ठीक') || t.includes('confirm') || t.includes('karo') || t.includes('kardo');
+      return addBot(yes ? R.confirmed(genId()) : R.cancel);
+    }
+
+    if (t.includes('book') || t.includes('बुक') || t.includes('gaadi book') || t.includes('गाड़ी बुक') || t.includes('booking karo') || t.includes('बुकिंग करो')) {
+      setConvState({ step: 'ask_name' });
+      return addBot(R.book);
+    }
+    if (t.includes('नज़दीक') || t.includes('nearby') || t.includes('vehicle') || t.includes('वाहन') || t.includes('gaadi dhundo') || t.includes('गाड़ी ढूंढ') || t.includes('truck')) return addBot(R.vehicles);
+    if (t.includes('मेरी बुकिंग') || t.includes('my booking') || t.includes('meri booking') || t.includes('status') || t.includes('booking check')) return addBot(R.mybooking);
+    if (t.includes('किराया') || t.includes('fare') || t.includes('kitna') || t.includes('rate') || t.includes('cost') || t.includes('price')) return addBot(R.fare);
+    if (t.includes('driver') || t.includes('ड्राइवर') || t.includes('vahan malik') || t.includes('वाहन मालिक') || t.includes('register')) return addBot(R.driver);
+    if (t.includes('admin') || t.includes('password') || t.includes('panel')) return addBot(R.admin);
+    if (t.includes('help') || t.includes('मदद') || t.includes('kya kar') || t.includes('क्या कर')) return addBot(R.help);
+    if (t.includes('cancel') || t.includes('रद्द') || t.includes('band') || t.includes('nahi')) return addBot(R.cancel);
+    if (t.match(/^(नमस्ते|hello|hi|helo|namaste|hey|हेलो)[\s!]*$/)) return addBot(R.greet);
+
+    return addBot(R.unknown);
+  }, [lang, convState, addBot]);
+
+  const send = () => {
+    const text = input.trim();
+    if (!text) return;
+    setInput('');
+    addUser(text);
+    process(text);
+  };
+
+  const handleChip = (chip) => {
+    addUser(chip);
+    process(chip);
+  };
+
+  const toggleVoice = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { addBot('Voice के लिए Chrome browser use करें।'); return; }
+    if (listening) {
+      recognitionRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const r = new SR();
+    r.lang = lang === 'en' ? 'en-IN' : 'hi-IN';
+    r.continuous = false; r.interimResults = false;
+    r.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      setListening(false);
+      addUser(text);
+      process(text);
+    };
+    r.onerror = () => setListening(false);
+    r.onend = () => setListening(false);
+    recognitionRef.current = r;
+    r.start();
+    setListening(true);
+  };
+
+  const changeLang = (l) => {
+    setLang(l);
+    setConvState({});
+    if (open && msgs.length === 0) {
+      setTimeout(() => addBot(AI_RESPONSES[l].greet), 300);
+    }
+  };
+
+  const handleOpen = () => {
+    setOpen(o => {
+      if (!o && msgs.length === 0) {
+        setTimeout(() => addBot(AI_RESPONSES[lang].greet), 450);
+      }
+      return !o;
+    });
+  };
+
+  return (
+    <>
+      {/* FAB */}
+      <button className="ai-fab" onClick={handleOpen} aria-label="AI Chatbot खोलें">
+        <span>{open ? '✕' : '🤖'}</span>
+        {!open && <span className="ai-fab-label">AI</span>}
+      </button>
+
+      {/* Chat Window */}
+      <div className={`ai-window ${open ? 'ai-open' : ''}`}>
+        {/* Header */}
+        <div className="ai-header">
+          <div className="ai-avatar">🤖</div>
+          <div style={{ flex: 1 }}>
+            <div className="ai-hname">गाड़ी Express AI</div>
+            <div className="ai-hstatus"><span className="ai-dot" /> Online — हमेशा तैयार</div>
+          </div>
+          <button className="ai-close-btn" onClick={() => setOpen(false)}>✕</button>
+        </div>
+
+        {/* Language Toggle */}
+        <div className="ai-lang-row">
+          {['hi', 'en', 'hinglish'].map(l => (
+            <button key={l} className={`ai-lang-btn ${lang === l ? 'ai-lang-active' : ''}`} onClick={() => changeLang(l)}>
+              {l === 'hi' ? '🇮🇳 हिंदी' : l === 'en' ? '🇬🇧 English' : '🔀 Hinglish'}
+            </button>
+          ))}
+        </div>
+
+        {/* Messages */}
+        <div className="ai-messages">
+          {msgs.map((m, i) => (
+            <div key={i} className={`ai-msg ${m.role === 'user' ? 'ai-user' : 'ai-bot'}`}>
+              {m.role === 'bot' && <div className="ai-msg-avatar">🤖</div>}
+              <div>
+                <div className="ai-bubble">{m.text}</div>
+                <div className={`ai-time`} style={{ textAlign: m.role === 'user' ? 'right' : 'left' }}>{m.time}</div>
+              </div>
+              {m.role === 'user' && <div className="ai-msg-avatar" style={{ background: 'var(--saffron)', color: 'white' }}>👤</div>}
+            </div>
+          ))}
+          {typing && (
+            <div className="ai-msg ai-bot">
+              <div className="ai-msg-avatar">🤖</div>
+              <div className="ai-bubble" style={{ padding: 0 }}>
+                <div className="ai-typing">
+                  <div className="ai-typing-dot" />
+                  <div className="ai-typing-dot" />
+                  <div className="ai-typing-dot" />
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={msgsEndRef} />
+        </div>
+
+        {/* Quick Chips */}
+        <div className="ai-chips">
+          {AI_CHIPS[lang].map(chip => (
+            <button key={chip} className="ai-chip" onClick={() => handleChip(chip)}>{chip}</button>
+          ))}
+        </div>
+
+        {/* Input Row */}
+        <div className="ai-input-row">
+          <input
+            className="ai-input"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && send()}
+            placeholder={lang === 'en' ? 'Type here...' : lang === 'hinglish' ? 'Yahan type karo...' : 'यहाँ टाइप करें...'}
+          />
+          <button className={`ai-mic-btn ${listening ? 'ai-listening' : ''}`} onClick={toggleVoice} title="Voice Input">
+            {listening ? '⏹' : '🎤'}
+          </button>
+          <button className="ai-send-btn" onClick={send} title="Send">➤</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── MAIN APP ────────────────────────────────────────────────────────────────────
 export default function App() {
   const [screen, setScreen] = useState('home');
@@ -1099,6 +1502,7 @@ export default function App() {
         {screen === 'driver'   && <DriverScreen   showToast={showToast} onBack={() => setScreen('home')} />}
         {screen === 'admin'    && <AdminScreen    showToast={showToast} onBack={() => setScreen('home')} />}
         {toast && <Toast msg={toast.msg} type={toast.type} />}
+        <AIChatbot />
       </div>
     </>
   );
