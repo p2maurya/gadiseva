@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { api, getLocation, GOODS_TYPES, VEHICLE_TYPES, VEHICLE_EMOJI, calcFare } from './utils/api';
 
 // ─── GLOBAL STYLES ─────────────────────────────────────────────────────────────
